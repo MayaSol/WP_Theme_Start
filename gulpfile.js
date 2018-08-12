@@ -17,6 +17,7 @@ var csscomb = require("gulp-csscomb");
 var gnf = require('gulp-npm-files');
 var svgstore = require("gulp-svgstore");
 var cheerio = require('gulp-cheerio');
+var rsync = require('gulp-rsync');
 
 const config = {
   build: "/var/www/sweetcake/wp-content/themes/sweetcake/",
@@ -104,6 +105,20 @@ gulp.task("compress", function(cb){
     ],
     cb
     );
+});
+
+gulp.task('deploy', function() {
+  return gulp.src(config.build + '**')
+    .pipe(rsync({
+      root: config.build,
+      hostname: 'u0415326@maya-site.ru',
+      destination: 'www/maya-site.ru/sweetcake/wp-content/themes/sweetcake/',
+      archive: true,
+      silent: false,
+      compress: true,
+      verbose: true,
+      progress: true
+    }));
 });
 
 gulp.task("build", function(fn) {
