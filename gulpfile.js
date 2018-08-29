@@ -18,6 +18,9 @@ var gnf = require('gulp-npm-files');
 var svgstore = require("gulp-svgstore");
 var cheerio = require('gulp-cheerio');
 var rsync = require('gulp-rsync');
+var buffer = require('vinyl-buffer');
+var merge = require('merge-stream');
+var spritesmith = require('gulp.spritesmith');
 
 const config = {
   build: "/var/www/sweetcake/wp-content/themes/sweetcake/",
@@ -53,7 +56,7 @@ gulp.task("copyNpmDependenciesOnly", function() {
 
 gulp.task("svgsprite", function() {
   var sources = gulp
-  .src("img/svg-sprite/*.svg")
+  .src("img/icons-svg/*.svg")
   .pipe(svgstore({
       inlineSvg: true
     }))
@@ -65,6 +68,48 @@ gulp.task("svgsprite", function() {
   }))
   .pipe(rename("svg-sprite.svg"))
   .pipe(gulp.dest(config.build + "img/svg-sprite"));
+});
+
+
+gulp.task("images", function(){
+  return gulp.src("build/img/**/*.{png,jpg,gif}")
+  .pipe(imagemin([
+    imagemin.optipng({optimizationLevel: 3}),
+    imagemin.jpegtran({progressive: true})
+  ]))
+  .pipe(gulp.dest("build/img"));
+});
+
+gulp.task("compress", function(cb){
+  pump([
+    gulp.src("build/js/**/*.js"),
+    uglify(),
+    gulp.dest("build/js-mini")
+    ],
+    cb
+    );
+});
+
+ // Call before 'style' task and after 'image' task
+gulp.task('sprite', function () {
+  // Generate our spritesheet
+  var spriteData = gulp.src('img/icons-png/*.png').pipe(spritesmith({
+    imgName: 'img/sprite.png',
+    cssFormat: 'scss',
+    cssName: 'sprite.scss'
+  }));
+
+  // Pipe image stream through image optimizer and onto disk
+  var imgStream = spriteData.img
+    // DEV: We must buffer our stream into a Buffer for `imagemin`
+    .pipe(gulp.dest(config.build));
+
+  // Pipe CSS stream through CSS optimizer and onto disk
+  var cssStream = spriteData.css
+    .pipe(gulp.dest('sass/'));
+
+  // Return a merged stream to handle both `end` events
+  return merge(imgStream, cssStream);
 });
 
 
@@ -88,24 +133,6 @@ gulp.task("style", function() {
     .pipe(server.stream());
 });
 
-gulp.task("images", function(){
-  return gulp.src("build/img/**/*.{png,jpg,gif}")
-  .pipe(imagemin([
-    imagemin.optipng({optimizationLevel: 3}),
-    imagemin.jpegtran({progressive: true})
-  ]))
-  .pipe(gulp.dest("build/img"));
-});
-
-gulp.task("compress", function(cb){
-  pump([
-    gulp.src("build/js/**/*.js"),
-    uglify(),
-    gulp.dest("build/js-mini")
-    ],
-    cb
-    );
-});
 
 gulp.task('deploy', function() {
   return gulp.src(config.build + '**')
@@ -113,11 +140,13 @@ gulp.task('deploy', function() {
       root: config.build,
       hostname: 'u0415326@maya-site.ru',
       destination: 'www/maya-site.ru/sweetcake/wp-content/themes/sweetcake/',
-      archive: true,
-      silent: false,
-      compress: true,
-      verbose: true,
-      progress: true
+      archive: false,
+      recursive: true,
+      links: true,
+      times: true,
+      silent: true,
+      compress: true
+      //, command: true
     }));
 });
 
@@ -127,8 +156,8 @@ gulp.task("build", function(fn) {
       "copyNpmDependenciesOnly",
       "svgsprite",
       "style",
-//      "images",
-//      "compress",
+      "images",
+      "compress",
       fn);
 });
 
